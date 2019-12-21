@@ -45,6 +45,10 @@ public class MQClientManager {
     }
 
     public MQClientInstance getOrCreateMQClientInstance(final ClientConfig clientConfig, RPCHook rpcHook) {
+        /*
+         * ClientId 为客户端IP + instance 如果在同一台物理服务器部署两个应用程序。岂不是clientId 相同。造成混乱
+         * 避免这个问题，instance为默认DEFAULT的话，rocketMQ 会自动将instance设置为进程ID。这样避免不同进程的相互影响。
+         */
         String clientId = clientConfig.buildMQClientId();
         MQClientInstance instance = this.factoryTable.get(clientId);
         if (null == instance) {
