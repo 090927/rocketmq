@@ -893,7 +893,7 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     }
 
     /**
-     * 消息同步发送
+     * 同步~批量发送消息
      * @param msgs
      * @return
      * @throws MQClientException
