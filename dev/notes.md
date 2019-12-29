@@ -15,9 +15,11 @@
         - 主从同步 handleHA
 
 
-##### 消息 producer
+##### 消息生产~producer
 - DefaultMQProducerImpl # sendDefaultImpl 【消息发送】
     - tryToFindTopicPublishInfo 【寻找主题路由】
     - selectOneMessageQueue 【选择 MessageQueue】
     - sendKernelImpl 【根据MessageQueue 向特定Broker 发送消息】
     
+##### 消息消费~Consumer
+- DefaultMQPushConsumerImpl # start 【消息消费】
