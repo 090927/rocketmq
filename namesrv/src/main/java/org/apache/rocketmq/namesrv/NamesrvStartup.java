@@ -42,7 +42,7 @@ import org.apache.rocketmq.srvutil.ShutdownHookThread;
 import org.slf4j.LoggerFactory;
 
 /**
- * nameSrv 启动类
+ * nameServer 启动类
  */
 public class NamesrvStartup {
 
@@ -134,12 +134,18 @@ public class NamesrvStartup {
         return controller;
     }
 
+    /**
+     * 核心启动方法
+     * @param controller
+     * @return
+     * @throws Exception
+     */
     public static NamesrvController start(final NamesrvController controller) throws Exception {
 
         if (null == controller) {
             throw new IllegalArgumentException("NamesrvController is null");
         }
-
+        // 初始化
         boolean initResult = controller.initialize();
         if (!initResult) {
             controller.shutdown();

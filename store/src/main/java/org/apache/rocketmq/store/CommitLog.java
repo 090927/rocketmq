@@ -550,6 +550,11 @@ public class CommitLog {
         return beginTimeInLock;
     }
 
+    /**
+     * 将日志写入 commitLog 文件
+     * @param msg
+     * @return
+     */
     public PutMessageResult putMessage(final MessageExtBrokerInner msg) {
         // Set the storage time
         msg.setStoreTimestamp(System.currentTimeMillis());
@@ -563,7 +568,7 @@ public class CommitLog {
 
         String topic = msg.getTopic();
         int queueId = msg.getQueueId();
-
+        // 获取消息类型（事务消息、非事务消息、commit 消息）
         final int tranType = MessageSysFlag.getTransactionValue(msg.getSysFlag());
         if (tranType == MessageSysFlag.TRANSACTION_NOT_TYPE
             || tranType == MessageSysFlag.TRANSACTION_COMMIT_TYPE) {
@@ -599,8 +604,9 @@ public class CommitLog {
         long eclipsedTimeInLock = 0;
 
         MappedFile unlockMappedFile = null;
+        // 获取 mappedFile 对象，内存映射的具体实现
         MappedFile mappedFile = this.mappedFileQueue.getLastMappedFile();
-
+        // 追加消息需要加锁，串行化处理。
         putMessageLock.lock(); //spin or ReentrantLock ,depending on store config
         try {
             long beginLockTimestamp = this.defaultMessageStore.getSystemClock().now();
@@ -617,8 +623,9 @@ public class CommitLog {
                 log.error("create mapped file1 error, topic: " + msg.getTopic() + " clientAddr: " + msg.getBornHostString());
                 beginTimeInLock = 0;
                 return new PutMessageResult(PutMessageStatus.CREATE_MAPEDFILE_FAILED, null);
-            }
+            }// 验证代码，MappedFile 对象，获取一个可用 MappedFile 如果没有创建一个
 
+            // 通过MappedFile 对象写入文件 【 消息写入 】
             result = mappedFile.appendMessage(msg, this.appendMessageCallback);
             switch (result.getStatus()) {
                 case PUT_OK:
@@ -667,18 +674,29 @@ public class CommitLog {
         storeStatsService.getSinglePutMessageTopicTimesTotal(msg.getTopic()).incrementAndGet();
         storeStatsService.getSinglePutMessageTopicSizeTotal(topic).addAndGet(result.getWroteBytes());
 
+        // 根据刷盘策略刷盘（同步、异步）【 handleDiskFlush 】
         handleDiskFlush(result, putMessageResult, msg);
+        // 主从同步
         handleHA(result, putMessageResult, msg);
 
         return putMessageResult;
     }
 
+    /**
+     * 消息刷盘
+     * @param result
+     * @param putMessageResult
+     * @param messageExt
+     */
     public void handleDiskFlush(AppendMessageResult result, PutMessageResult putMessageResult, MessageExt messageExt) {
-        // Synchronization flush
+        // Synchronization flush 同步刷盘、两种配置，是否一定收到存储MSG 消息、才返回true
         if (FlushDiskType.SYNC_FLUSH == this.defaultMessageStore.getMessageStoreConfig().getFlushDiskType()) {
             final GroupCommitService service = (GroupCommitService) this.flushCommitLogService;
+            // 如果等待存储结果
             if (messageExt.isWaitStoreMsgOK()) {
+                // 同步刷盘 【 GroupCommitRequest 】
                 GroupCommitRequest request = new GroupCommitRequest(result.getWroteOffset() + result.getWroteBytes());
+                // 具体刷盘代码 【 putRequest 】
                 service.putRequest(request);
                 boolean flushOK = request.waitForFlush(this.defaultMessageStore.getMessageStoreConfig().getSyncFlushTimeout());
                 if (!flushOK) {
@@ -686,11 +704,11 @@ public class CommitLog {
                         + " client address: " + messageExt.getBornHostString());
                     putMessageResult.setPutMessageStatus(PutMessageStatus.FLUSH_DISK_TIMEOUT);
                 }
-            } else {
+            } else { // 唤醒同步刷盘线程
                 service.wakeup();
             }
         }
-        // Asynchronous flush
+        // Asynchronous flush 异步刷盘
         else {
             if (!this.defaultMessageStore.getMessageStoreConfig().isTransientStorePoolEnable()) {
                 flushCommitLogService.wakeup();
@@ -1079,6 +1097,12 @@ public class CommitLog {
         }
     }
 
+    /**
+     * 同步刷盘
+     * nextOffset 下一个点的偏移量
+     * countDownLatch 闭锁
+     * flushOK 是否刷新成功
+     */
     public static class GroupCommitRequest {
         private final long nextOffset;
         private final CountDownLatch countDownLatch = new CountDownLatch(1);
@@ -1162,6 +1186,9 @@ public class CommitLog {
             }
         }
 
+        /**
+         * 具体刷盘逻辑。
+         */
         public void run() {
             CommitLog.log.info(this.getServiceName() + " service started");
 
@@ -1232,8 +1259,22 @@ public class CommitLog {
             return msgStoreItemMemory;
         }
 
+        /**
+         * 具体写入逻辑
+         * @param fileFromOffset
+         * @param byteBuffer
+         * @param maxBlank
+         * @param msgInner
+         * @return
+         */
         public AppendMessageResult doAppend(final long fileFromOffset, final ByteBuffer byteBuffer, final int maxBlank,
             final MessageExtBrokerInner msgInner) {
+            /**
+             * fileFromOffset 该文件在整个文件序列中的偏移量
+             * ByteBuffer NIO 字节容器
+             * maxBlank 最大可写字节数
+             * MessageExtBrokerInner 消息内部封装实体
+             */
             // STORETIMESTAMP + STOREHOSTADDRESS + OFFSET <br>
 
             // PHY OFFSET
@@ -1249,12 +1290,13 @@ public class CommitLog {
             this.resetByteBuffer(storeHostHolder, storeHostLength);
             String msgId;
             if ((sysflag & MessageSysFlag.STOREHOSTADDRESS_V6_FLAG) == 0) {
+                // 创建mesgId ip(4字节) + port（4字节） + commitLog 偏移地址（8字节）
                 msgId = MessageDecoder.createMessageId(this.msgIdMemory, msgInner.getStoreHostBytes(storeHostHolder), wroteOffset);
             } else {
                 msgId = MessageDecoder.createMessageId(this.msgIdV6Memory, msgInner.getStoreHostBytes(storeHostHolder), wroteOffset);
             }
 
-            // Record ConsumeQueue information
+            // Record ConsumeQueue information 根据topic-queryId 获取该队列的偏移地址，如果没有，新增一个键值对，当前偏移量为0
             keyBuilder.setLength(0);
             keyBuilder.append(msgInner.getTopic());
             keyBuilder.append('-');
@@ -1267,6 +1309,7 @@ public class CommitLog {
             }
 
             // Transaction messages that require special handling
+            // 对事物消息需要单独处理。(PREPARE, ROLLBACK 类型的消息，不进入consume 队列)
             final int tranType = MessageSysFlag.getTransactionValue(msgInner.getSysFlag());
             switch (tranType) {
                 // Prepared and Rollback message is not consumed, will not enter the
@@ -1292,16 +1335,17 @@ public class CommitLog {
             if (propertiesLength > Short.MAX_VALUE) {
                 log.warn("putMessage message properties length too long. length={}", propertiesData.length);
                 return new AppendMessageResult(AppendMessageStatus.PROPERTIES_SIZE_EXCEEDED);
-            }
+            } // 消息的附加属性长度不能超过，65535 个字节。
 
             final byte[] topicData = msgInner.getTopic().getBytes(MessageDecoder.CHARSET_UTF8);
             final int topicLength = topicData.length;
 
             final int bodyLength = msgInner.getBody() == null ? 0 : msgInner.getBody().length;
-
+            // 计算消息存储长度、消息存储格式
             final int msgLen = calMsgLength(msgInner.getSysFlag(), bodyLength, topicLength, propertiesLength);
 
             // Exceeds the maximum message
+            // 如果消息长度超过配置长度，返回 MESSAGE_SIZE_EXCEPTION
             if (msgLen > this.maxMessageSize) {
                 CommitLog.log.warn("message size exceeded, msg total size: " + msgLen + ", msg body size: " + bodyLength
                     + ", maxMessageSize: " + this.maxMessageSize);
@@ -1309,6 +1353,7 @@ public class CommitLog {
             }
 
             // Determines whether there is sufficient free space
+            // 如果该MapperFile 课剩余空间小于当前消息存储空间，返回 END_OF_FILE
             if ((msgLen + END_FILE_MIN_BLANK_LENGTH) > maxBlank) {
                 this.resetByteBuffer(this.msgStoreItemMemory, maxBlank);
                 // 1 TOTALSIZE
@@ -1324,6 +1369,7 @@ public class CommitLog {
             }
 
             // Initialization of storage space
+            // 将消息写入 MapperFile (内存中)
             this.resetByteBuffer(msgStoreItemMemory, msgLen);
             // 1 TOTALSIZE
             this.msgStoreItemMemory.putInt(msgLen);

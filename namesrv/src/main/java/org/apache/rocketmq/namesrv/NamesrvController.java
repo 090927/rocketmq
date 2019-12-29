@@ -74,16 +74,18 @@ public class NamesrvController {
     }
 
     public boolean initialize() {
-
+        // NameServer 属性配置文件
         this.kvConfigManager.load();
-
+        // 加载网络通信 ~【netty 任务线程池配置 】
         this.remotingServer = new NettyRemotingServer(this.nettyServerConfig, this.brokerHousekeepingService);
 
+        // 创建固定线程数
         this.remotingExecutor =
             Executors.newFixedThreadPool(nettyServerConfig.getServerWorkerThreads(), new ThreadFactoryImpl("RemotingExecutorThread_"));
-
+        // DefaultRequestProcessor 与 固定线程数绑定在一起。
         this.registerProcessor();
 
+        // NameServer 每10S扫描一次所有的 broker,根据心跳包的时间得知 broker的状态
         this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
 
             @Override
@@ -92,6 +94,7 @@ public class NamesrvController {
             }
         }, 5, 10, TimeUnit.SECONDS);
 
+        // 定时任务，打印KVConfig 信息。
         this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
 
             @Override

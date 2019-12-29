@@ -27,7 +27,7 @@ public class MQFaultStrategy {
     private final LatencyFaultTolerance<String> latencyFaultTolerance = new LatencyFaultToleranceImpl();
 
     private boolean sendLatencyFaultEnable = false;
-
+    // 最大延迟时间数值，在消息发送之前，先纪律当前时间 start。然后在发送成功或失败时记录当前时间 end（end-start)代表一次消费延迟时间。
     private long[] latencyMax = {50L, 100L, 550L, 1000L, 2000L, 3000L, 15000L};
     private long[] notAvailableDuration = {0L, 0L, 30000L, 60000L, 120000L, 180000L, 600000L};
 
@@ -55,15 +55,32 @@ public class MQFaultStrategy {
         this.sendLatencyFaultEnable = sendLatencyFaultEnable;
     }
 
+    /**
+     * 获取发送者 messageQueue。
+     * @param tpInfo
+     * @param lastBrokerName
+     * @return
+     */
     public MessageQueue selectOneMessageQueue(final TopicPublishInfo tpInfo, final String lastBrokerName) {
+        /**
+         * "sendLatencyFaultEnable"
+         * 是否开启消息延迟规避机制，是消息发送者哪里可以设置。
+         * 如果为 false，直接从 topic 的所有队列中选择下一个。而不考虑该队列是否可用。
+         */
         if (this.sendLatencyFaultEnable) {
             try {
+                /**
+                 * 使用本地线程变量，ThreadLocal 保存上一次发送的队列下标，消息发送使用轮训机制获取下一个发送消息队里。
+                 * 循环，因为加入发送异常延迟，要确保选中的消息队列（MessageQueue）所在的Broker 是否正常
+                 */
                 int index = tpInfo.getSendWhichQueue().getAndIncrement();
                 for (int i = 0; i < tpInfo.getMessageQueueList().size(); i++) {
                     int pos = Math.abs(index++) % tpInfo.getMessageQueueList().size();
                     if (pos < 0)
                         pos = 0;
                     MessageQueue mq = tpInfo.getMessageQueueList().get(pos);
+
+                    // 判断当前的消息队列是否可用。
                     if (latencyFaultTolerance.isAvailable(mq.getBrokerName())) {
                         if (null == lastBrokerName || mq.getBrokerName().equals(lastBrokerName))
                             return mq;
@@ -71,6 +88,7 @@ public class MQFaultStrategy {
                 }
 
                 final String notBestBroker = latencyFaultTolerance.pickOneAtLeast();
+                // 根据broker 的 startTimestart 进行一个排序，值越小，排前面，然后再选择一个，
                 int writeQueueNums = tpInfo.getQueueIdByBroker(notBestBroker);
                 if (writeQueueNums > 0) {
                     final MessageQueue mq = tpInfo.selectOneMessageQueue();
