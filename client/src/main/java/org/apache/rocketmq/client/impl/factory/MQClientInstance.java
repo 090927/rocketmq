@@ -604,6 +604,14 @@ public class MQClientInstance {
         }
     }
 
+    /**
+     * 【MQ 消息消费】
+     * 如果未找到路由信息，则再次尝试使用，默认topic(defaultMQProducer) 去找路由配置信息
+     * @param topic
+     * @param isDefault
+     * @param defaultMQProducer
+     * @return
+     */
     public boolean updateTopicRouteInfoFromNameServer(final String topic, boolean isDefault,
         DefaultMQProducer defaultMQProducer) {
         try {
