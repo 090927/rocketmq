@@ -23,3 +23,10 @@
     
 ##### 消息消费~Consumer
 - DefaultMQPushConsumerImpl # start 【消息消费】
+###### 消息消费处理
+- ConsumeMessageConcurrentlyService # run()
+    - listener.consumeMessage() 【 消息消费状态】
+    - processConsumeResult()  【 消息消费结果处理】
+##### 延迟消息机制
+- CommitLog # putMessage()
+> 在消息存入commitlog之前，如果发现延迟level大于0，会将消息的主题设置为SCHEDULE_TOPIC = "SCHEDULE_TOPIC_XXXX"，然后备份原主题名称。那就清晰明了，延迟消息统一由 ScheduleMessageService 来处理
