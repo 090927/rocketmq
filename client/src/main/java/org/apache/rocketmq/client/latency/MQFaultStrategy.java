@@ -24,8 +24,15 @@ import org.apache.rocketmq.common.message.MessageQueue;
 
 public class MQFaultStrategy {
     private final static InternalLogger log = ClientLogger.getLog();
+
+    /**
+     * 延迟故障容错，维护每个Broker的发送消息的延迟
+     */
     private final LatencyFaultTolerance<String> latencyFaultTolerance = new LatencyFaultToleranceImpl();
 
+    /**
+     * 发送消息延迟容错开关
+     */
     private boolean sendLatencyFaultEnable = false;
     // 最大延迟时间数值，在消息发送之前，先纪律当前时间 start。然后在发送成功或失败时记录当前时间 end（end-start)代表一次消费延迟时间。
     private long[] latencyMax = {50L, 100L, 550L, 1000L, 2000L, 3000L, 15000L};
@@ -87,6 +94,7 @@ public class MQFaultStrategy {
                     }
                 }
 
+                // [ pickOneAtLeast ] 选择优秀对象，类似延迟队列
                 final String notBestBroker = latencyFaultTolerance.pickOneAtLeast();
                 // 根据broker 的 startTimestart 进行一个排序，值越小，排前面，然后再选择一个，
                 int writeQueueNums = tpInfo.getQueueIdByBroker(notBestBroker);
@@ -104,19 +112,35 @@ public class MQFaultStrategy {
                 log.error("Error occurred when selecting message queue", e);
             }
 
+            // 选择一个消息队列，不考虑队列的可用性
             return tpInfo.selectOneMessageQueue();
         }
 
+        // 获得 lastBrokerName 对应的一个消息队列，不考虑该队列的可用性
         return tpInfo.selectOneMessageQueue(lastBrokerName);
     }
 
+    /**
+     * 更新延迟容错信息
+     *
+     * @param brokerName brokerName
+     * @param currentLatency 延迟
+     * @param isolation 是否隔离。当开启隔离时，默认延迟为30000。目前主要用于发送消息异常时
+     */
     public void updateFaultItem(final String brokerName, final long currentLatency, boolean isolation) {
         if (this.sendLatencyFaultEnable) {
+            // 计算延迟对应的不可用时间
             long duration = computeNotAvailableDuration(isolation ? 30000 : currentLatency);
+            // [ updateFaultItem ]
             this.latencyFaultTolerance.updateFaultItem(brokerName, currentLatency, duration);
         }
     }
 
+    /**
+     * 计算延迟对应的不可用时间
+     * @param currentLatency 延迟
+     * @return 不可以时间
+     */
     private long computeNotAvailableDuration(final long currentLatency) {
         for (int i = latencyMax.length - 1; i >= 0; i--) {
             if (currentLatency >= latencyMax[i])
