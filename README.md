@@ -30,12 +30,12 @@
     * MessageStoreConfig (存储相关的配置，例如存储路径、commitLog文件大小，刷盘频次)
 - DefaultMessageStore # putMessage 【 消息存储流程 】 
     - commitLog # putMessage 【将日志写入 commitLog 】 
-        - 消息写入文件逻辑 ``mappedFile # appendMessage``
+        - 将消息追加到最新文件 ``mappedFile # appendMessage``
             - 具体写入逻辑，``CommitLog # doAppend``  
         - 文件刷盘 ``handleDiskFlush``
             -  【 同步刷盘 】GroupCommitService # doCommit 
             -  【 异步刷盘 && 开启内存字节缓冲区】CommitRealTimeService
-            -  【 异步刷盘 && 关闭内存字节缓冲区 】FlushRealTimeService              
+            -  【 异步刷盘 && 关闭内存字节缓冲区 】``FlushRealTimeService 定时任务``              
         - 主从同步 ``handleHA`` 
     
     
@@ -76,3 +76,11 @@
 
 > 在消息存入commitlog之前，如果发现延迟level大于0，会将消息的主题设置为SCHEDULE_TOPIC = "SCHEDULE_TOPIC_XXXX"，
 >然后备份原主题名称。那就清晰明了，延迟消息统一由 ScheduleMessageService 来处理
+
+
+#### BrokerServer：包含重要的子模块
+- ``Remoting Module：``整个Broker的实体，负责处理来自clients端的请求。
+- ``Client Manager：``负责管理客户端(Producer/Consumer)和维护Consumer的Topic订阅信息
+- ``Store Service：``提供方便简单的API接口处理消息存储到物理硬盘和查询功能。
+- ``HA Service：``高可用服务，提供Master Broker 和 Slave Broker之间的数据同步功能。
+- ``Index Service：``根据特定的Message key对投递到Broker的消息进行索引服务，以提供消息的快速查询
