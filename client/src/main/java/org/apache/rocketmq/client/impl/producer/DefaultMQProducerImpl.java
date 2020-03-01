@@ -535,6 +535,12 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
     }
 
+    /**
+     * 根据Topic 选择消息队列
+     * @param tpInfo
+     * @param lastBrokerName
+     * @return
+     */
     public MessageQueue selectOneMessageQueue(final TopicPublishInfo tpInfo, final String lastBrokerName) {
         return this.mqFaultStrategy.selectOneMessageQueue(tpInfo, lastBrokerName);
     }
@@ -604,11 +610,12 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                         }
                         /**
                          * 3）根据MessageQueue 向特定Broker 发送消息
+                         * 【核心方法】
                          */
                         sendResult = this.sendKernelImpl(msg, mq, communicationMode, sendCallback, topicPublishInfo, timeout - costTime);
                         endTimestamp = System.currentTimeMillis();
 
-                        // updateFaultItem【更新延迟容错信息】
+                        // updateFaultItem【 更新Broker可用性信息 】
                         this.updateFaultItem(mq.getBrokerName(), endTimestamp - beginTimestampPrev, false);
                         switch (communicationMode) {
                             case ASYNC:
@@ -678,11 +685,12 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                     break;
                 }
             }
-
+            // 返回发送结果
             if (sendResult != null) {
                 return sendResult;
             }
 
+            // 根据不同情况，抛出不同的异常
             String info = String.format("Send [%d] times, still failed, cost [%d]ms, Topic: %s, BrokersSent: %s",
                 times,
                 System.currentTimeMillis() - beginTimestampFirst,
@@ -745,7 +753,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
     }
 
     /**
-     * 消息发送
+     * 消息发送 【 核心方法 】
      * @param msg
      * @param mq
      * @param communicationMode
@@ -774,11 +782,12 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         SendMessageContext context = null;
         if (brokerAddr != null) {
             brokerAddr = MixAll.brokerVIPChannel(this.defaultMQProducer.isSendMessageWithVIPChannel(), brokerAddr);
-
+            // 记录消息内容。下面逻辑可能改变消息内容，例如消息压缩
             byte[] prevBody = msg.getBody();
             try {
                 //for MessageBatch,ID has been set in the generating process
                 if (!(msg instanceof MessageBatch)) {
+                    // 设置唯一编号
                     MessageClientIDSetter.setUniqID(msg);
                 }
 
@@ -787,7 +796,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                     msg.setInstanceId(this.mQClientFactory.getClientConfig().getNamespace());
                     topicWithNamespace = true;
                 }
-
+                // 消息压缩
                 int sysFlag = 0;
                 boolean msgBodyCompressed = false;
                 if (this.tryToCompressMessage(msg)) {
@@ -925,12 +934,12 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                         assert false;
                         break;
                 }
-
+                // hook：发送消息后逻辑
                 if (this.hasSendMessageHook()) {
                     context.setSendResult(sendResult);
                     this.executeSendMessageHookAfter(context);
                 }
-
+                // 返回发送结果
                 return sendResult;
             } catch (RemotingException e) {
                 if (this.hasSendMessageHook()) {

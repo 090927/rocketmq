@@ -22,6 +22,9 @@ import org.apache.rocketmq.remoting.annotation.CFNotNull;
 import org.apache.rocketmq.remoting.annotation.CFNullable;
 import org.apache.rocketmq.remoting.exception.RemotingCommandException;
 
+/**
+ * Broker 提供[发回消息]接口
+ */
 public class ConsumerSendMsgBackRequestHeader implements CommandCustomHeader {
     @CFNotNull
     private Long offset;

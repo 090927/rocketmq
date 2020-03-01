@@ -570,6 +570,8 @@ public class CommitLog {
         int queueId = msg.getQueueId();
         // 获取消息类型（事务消息、非事务消息、commit 消息）
         final int tranType = MessageSysFlag.getTransactionValue(msg.getSysFlag());
+
+        // “延迟消息”
         if (tranType == MessageSysFlag.TRANSACTION_NOT_TYPE
             || tranType == MessageSysFlag.TRANSACTION_COMMIT_TYPE) {
             // Delay Delivery
@@ -616,7 +618,7 @@ public class CommitLog {
             // Here settings are stored timestamp, in order to ensure an orderly
             // global
             msg.setStoreTimestamp(beginLockTimestamp);
-
+            // 当不存在映射文件时，进行创建
             if (null == mappedFile || mappedFile.isFull()) {
                 mappedFile = this.mappedFileQueue.getLastMappedFile(0); // Mark: NewFile may be cause noise
             }
@@ -626,15 +628,15 @@ public class CommitLog {
                 return new PutMessageResult(PutMessageStatus.CREATE_MAPEDFILE_FAILED, null);
             }// 验证代码，MappedFile 对象，获取一个可用 MappedFile 如果没有创建一个
 
-            // 通过MappedFile 对象写入文件 【 消息写入 】
+            // 通过 ``MappedFile`` 对象写入文件 【 消息写入 】
             result = mappedFile.appendMessage(msg, this.appendMessageCallback);
             switch (result.getStatus()) {
                 case PUT_OK:
                     break;
-                case END_OF_FILE:
+                case END_OF_FILE:  // 当文件尾时，获取新的映射文件，并进行插入
                     unlockMappedFile = mappedFile;
-                    // Create a new file, re-write the message
-                    // [ getLastMappedFile ]
+
+                    // 【 getLastMappedFile 】
                     mappedFile = this.mappedFileQueue.getLastMappedFile(0);
                     if (null == mappedFile) {
                         // XXX: warn and notify me
@@ -642,6 +644,7 @@ public class CommitLog {
                         beginTimeInLock = 0;
                         return new PutMessageResult(PutMessageStatus.CREATE_MAPEDFILE_FAILED, result);
                     }
+                    // 【 appendMessage 】
                     result = mappedFile.appendMessage(msg, this.appendMessageCallback);
                     break;
                 case MESSAGE_SIZE_EXCEEDED:
@@ -659,6 +662,7 @@ public class CommitLog {
             eclipsedTimeInLock = this.defaultMessageStore.getSystemClock().now() - beginLockTimestamp;
             beginTimeInLock = 0;
         } finally {
+            // 释放写入锁
             putMessageLock.unlock();
         }
 
@@ -965,6 +969,9 @@ public class CommitLog {
         protected static final int RETRY_TIMES_OVER = 10;
     }
 
+    /**
+     * 异步刷盘 && 开启内存字节缓冲区
+     */
     class CommitRealTimeService extends FlushCommitLogService {
 
         private long lastCommitTimestamp = 0;
@@ -1018,8 +1025,13 @@ public class CommitLog {
         }
     }
 
+    /**
+     * 异步刷盘 && 关闭内存字节缓冲区
+     */
     class FlushRealTimeService extends FlushCommitLogService {
+        // 最后flush时间戳
         private long lastFlushTimestamp = 0;
+        // print计时器。
         private long printTimes = 0;
 
         public void run() {
@@ -1037,6 +1049,7 @@ public class CommitLog {
                 boolean printFlushProgress = false;
 
                 // Print flush progress
+                // 当时间满足flushPhysicQueueThoroughInterval时，即使写入的数量不足flushPhysicQueueLeastPages，也进行flush
                 long currentTimeMillis = System.currentTimeMillis();
                 if (currentTimeMillis >= (this.lastFlushTimestamp + flushPhysicQueueThoroughInterval)) {
                     this.lastFlushTimestamp = currentTimeMillis;
@@ -1045,6 +1058,7 @@ public class CommitLog {
                 }
 
                 try {
+                    // 等待执行
                     if (flushCommitLogTimed) {
                         Thread.sleep(interval);
                     } else {
@@ -1136,6 +1150,7 @@ public class CommitLog {
 
     /**
      * GroupCommit Service
+     * 同步刷盘
      */
     class GroupCommitService extends FlushCommitLogService {
         private volatile List<GroupCommitRequest> requestsWrite = new ArrayList<GroupCommitRequest>();

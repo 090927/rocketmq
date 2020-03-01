@@ -77,6 +77,7 @@ public class LatencyFaultToleranceImpl implements LatencyFaultTolerance<String> 
         final Enumeration<FaultItem> elements = this.faultItemTable.elements();
         List<FaultItem> tmpList = new LinkedList<FaultItem>();
         while (elements.hasMoreElements()) {
+            // [ FaultItem ] 对象
             final FaultItem faultItem = elements.nextElement();
             tmpList.add(faultItem);
         }

@@ -896,11 +896,19 @@ public class DefaultMQPushConsumerImpl implements MQConsumerInner {
         return this.rebalanceImpl.getSubscriptionInner();
     }
 
+    /**
+     * PushConsumer
+     * @param topic
+     * @param subExpression
+     * @throws MQClientException
+     */
     public void subscribe(String topic, String subExpression) throws MQClientException {
         try {
+            // 创建订阅数据 [buildSubscriptionData ]
             SubscriptionData subscriptionData = FilterAPI.buildSubscriptionData(this.defaultMQPushConsumer.getConsumerGroup(),
                 topic, subExpression);
             this.rebalanceImpl.getSubscriptionInner().put(topic, subscriptionData);
+            // 通过心跳同步Consumer信息到Broker
             if (this.mQClientFactory != null) {
                 this.mQClientFactory.sendHeartbeatToAllBrokerWithLock();
             }

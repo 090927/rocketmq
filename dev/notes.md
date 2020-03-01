@@ -1,4 +1,4 @@
-#### mq4.6_addlog baranch
+#### 已整理到 ``README.md``
 
 ##### NameServer 
 - NamesrvStartup # start 【 NameServer启动 】

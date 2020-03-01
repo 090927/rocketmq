@@ -376,9 +376,14 @@ public class ConsumeQueue {
         return this.minLogicOffset / CQ_STORE_UNIT_SIZE;
     }
 
+    /**
+     * 添加位置信息封装
+     * @param request
+     */
     public void putMessagePositionInfoWrapper(DispatchRequest request) {
         final int maxRetries = 30;
         boolean canWrite = this.defaultMessageStore.getRunningFlags().isCQWriteable();
+        // 多次循环写，直到成功
         for (int i = 0; i < maxRetries && canWrite; i++) {
             long tagsCode = request.getTagsCode();
             if (isExtWriteEnable()) {
@@ -395,9 +400,11 @@ public class ConsumeQueue {
                         topic, queueId, request.getCommitLogOffset());
                 }
             }
+            // 调用添加位置信息 【 putMessagePositionInfo 】
             boolean result = this.putMessagePositionInfo(request.getCommitLogOffset(),
                 request.getMsgSize(), tagsCode, request.getConsumeQueueOffset());
             if (result) {
+                // 添加成功，使用消息存储时间 作为 存储check point。
                 if (this.defaultMessageStore.getMessageStoreConfig().getBrokerRole() == BrokerRole.SLAVE ||
                     this.defaultMessageStore.getMessageStoreConfig().isEnableDLegerCommitLog()) {
                     this.defaultMessageStore.getStoreCheckpoint().setPhysicMsgTimestamp(request.getStoreTimestamp());
@@ -422,25 +429,33 @@ public class ConsumeQueue {
         this.defaultMessageStore.getRunningFlags().makeLogicsQueueError();
     }
 
+    /**
+     * 添加位置信息，并返回添加是否成功
+     * @param offset
+     * @param size
+     * @param tagsCode
+     * @param cqOffset
+     * @return
+     */
     private boolean putMessagePositionInfo(final long offset, final int size, final long tagsCode,
         final long cqOffset) {
-
+        // 如果已经重放过，直接返回成功
         if (offset + size <= this.maxPhysicOffset) {
             log.warn("Maybe try to build consume queue repeatedly maxPhysicOffset={} phyOffset={}", maxPhysicOffset, offset);
             return true;
         }
-
+        // 写入位置信息到byteBuffer
         this.byteBufferIndex.flip();
         this.byteBufferIndex.limit(CQ_STORE_UNIT_SIZE);
         this.byteBufferIndex.putLong(offset);
         this.byteBufferIndex.putInt(size);
         this.byteBufferIndex.putLong(tagsCode);
-
+        // 计算consumeQueue存储位置，并获得对应的MappedFile
         final long expectLogicOffset = cqOffset * CQ_STORE_UNIT_SIZE;
 
         MappedFile mappedFile = this.mappedFileQueue.getLastMappedFile(expectLogicOffset);
         if (mappedFile != null) {
-
+            // 当是ConsumeQueue第一个MappedFile && 队列位置非第一个 && MappedFile未写入内容，则填充前置空白占位
             if (mappedFile.isFirstCreateInQueue() && cqOffset != 0 && mappedFile.getWrotePosition() == 0) {
                 this.minLogicOffset = expectLogicOffset;
                 this.mappedFileQueue.setFlushedWhere(expectLogicOffset);
@@ -449,7 +464,7 @@ public class ConsumeQueue {
                 log.info("fill pre blank space " + mappedFile.getFileName() + " " + expectLogicOffset + " "
                     + mappedFile.getWrotePosition());
             }
-
+            // 校验consumeQueue存储位置是否合法
             if (cqOffset != 0) {
                 long currentLogicOffset = mappedFile.getWrotePosition() + mappedFile.getFileFromOffset();
 
@@ -470,7 +485,9 @@ public class ConsumeQueue {
                     );
                 }
             }
+            // 设置commitLog重放消息到ConsumeQueue位置。
             this.maxPhysicOffset = offset + size;
+            // 插入mappedFile
             return mappedFile.appendMessage(this.byteBufferIndex.array());
         }
         return false;
