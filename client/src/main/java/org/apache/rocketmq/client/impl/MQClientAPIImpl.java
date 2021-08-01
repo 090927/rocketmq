@@ -466,24 +466,42 @@ public class MQClientAPIImpl {
         }
         request.setBody(msg.getBody());
 
+        // 根据消息发送方式。
         switch (communicationMode) {
+
+            // 单向的。（不关心返回）
             case ONEWAY:
+
+                /**
+                 *   `单向发送` Broker {@link NettyRemotingClient#invokeOneway(String, RemotingCommand, long)}
+                 */
                 this.remotingClient.invokeOneway(addr, request, timeoutMillis);
                 return null;
+
+                // 异步发送
             case ASYNC:
                 final AtomicInteger times = new AtomicInteger();
                 long costTimeAsync = System.currentTimeMillis() - beginStartTime;
                 if (timeoutMillis < costTimeAsync) {
                     throw new RemotingTooMuchRequestException("sendMessage call timeout");
                 }
+
+                /**
+                 *  异步发送，发送结果,存放在 {@link SendMessageContext}
+                 *    1、callback 监听
+                 */
                 this.sendMessageAsync(addr, brokerName, msg, timeoutMillis - costTimeAsync, request, sendCallback, topicPublishInfo, instance,
                     retryTimesWhenSendFailed, times, context, producer);
                 return null;
+
+                // 同步发送（等待返回）
             case SYNC:
                 long costTimeSync = System.currentTimeMillis() - beginStartTime;
                 if (timeoutMillis < costTimeSync) {
                     throw new RemotingTooMuchRequestException("sendMessage call timeout");
                 }
+
+                // 同步发送
                 return this.sendMessageSync(addr, brokerName, msg, timeoutMillis - costTimeSync, request);
             default:
                 assert false;
@@ -493,6 +511,7 @@ public class MQClientAPIImpl {
         return null;
     }
 
+    // 同步发送
     private SendResult sendMessageSync(
         final String addr,
         final String brokerName,
@@ -500,29 +519,37 @@ public class MQClientAPIImpl {
         final long timeoutMillis,
         final RemotingCommand request
     ) throws RemotingException, MQBrokerException, InterruptedException {
+
+        // 同步发送消息。
         RemotingCommand response = this.remotingClient.invokeSync(addr, request, timeoutMillis);
         assert response != null;
+
+        /**
+         *  处理发送的响应 {@link #processSendResponse(String, Message, RemotingCommand)}
+         */
         return this.processSendResponse(brokerName, msg, response);
     }
 
+    // 异步发送
     private void sendMessageAsync(
         final String addr,
         final String brokerName,
         final Message msg,
         final long timeoutMillis,
         final RemotingCommand request,
-        final SendCallback sendCallback,
+        final SendCallback sendCallback, // 回调
         final TopicPublishInfo topicPublishInfo,
         final MQClientInstance instance,
         final int retryTimesWhenSendFailed,
         final AtomicInteger times,
-        final SendMessageContext context,
+        final SendMessageContext context,  // 存放，响应结果
         final DefaultMQProducerImpl producer
     ) throws InterruptedException, RemotingException {
         this.remotingClient.invokeAsync(addr, request, timeoutMillis, new InvokeCallback() {
             @Override
             public void operationComplete(ResponseFuture responseFuture) {
                 RemotingCommand response = responseFuture.getResponseCommand();
+                // 不存在，回调函数
                 if (null == sendCallback && response != null) {
 
                     try {
@@ -540,6 +567,8 @@ public class MQClientAPIImpl {
 
                 if (response != null) {
                     try {
+
+                        // 处理，异步发送 response
                         SendResult sendResult = MQClientAPIImpl.this.processSendResponse(brokerName, msg, response);
                         assert sendResult != null;
                         if (context != null) {
@@ -548,6 +577,7 @@ public class MQClientAPIImpl {
                         }
 
                         try {
+                            // 处理成功，将结果，存放在，`回调函数中`
                             sendCallback.onSuccess(sendResult);
                         } catch (Throwable e) {
                         }
@@ -636,6 +666,17 @@ public class MQClientAPIImpl {
         }
     }
 
+
+    /**
+     *  处理，发送后的 `响应`
+     *
+     * @param brokerName
+     * @param msg
+     * @param response
+     * @return
+     * @throws MQBrokerException
+     * @throws RemotingCommandException
+     */
     private SendResult processSendResponse(
         final String brokerName,
         final Message msg,
@@ -648,6 +689,8 @@ public class MQClientAPIImpl {
             }
             case ResponseCode.SUCCESS: {
                 SendStatus sendStatus = SendStatus.SEND_OK;
+
+                // 状态码
                 switch (response.getCode()) {
                     case ResponseCode.FLUSH_DISK_TIMEOUT:
                         sendStatus = SendStatus.FLUSH_DISK_TIMEOUT;
@@ -675,8 +718,10 @@ public class MQClientAPIImpl {
                     topic = NamespaceUtil.withoutNamespace(topic, this.clientConfig.getNamespace());
                 }
 
+                // 构建 messageQueue
                 MessageQueue messageQueue = new MessageQueue(topic, brokerName, responseHeader.getQueueId());
 
+                // 生成 msgId
                 String uniqMsgId = MessageClientIDSetter.getUniqID(msg);
                 if (msg instanceof MessageBatch) {
                     StringBuilder sb = new StringBuilder();
@@ -685,6 +730,8 @@ public class MQClientAPIImpl {
                     }
                     uniqMsgId = sb.toString();
                 }
+
+                // 组装 `sendResult`
                 SendResult sendResult = new SendResult(sendStatus,
                     uniqMsgId,
                     responseHeader.getMsgId(), messageQueue, responseHeader.getQueueOffset());

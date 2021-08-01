@@ -27,7 +27,11 @@ public class Message implements Serializable {
 
     private String topic;
     private int flag;
+
+    // 消息扩展信息，Tag, Keys, 延迟级别。都保存在这里。
     private Map<String, String> properties;
+
+    // 消息体，[ 需要注意：生产者使用什么编码，消费者也必须使用什么编码]
     private byte[] body;
     private String transactionId;
 

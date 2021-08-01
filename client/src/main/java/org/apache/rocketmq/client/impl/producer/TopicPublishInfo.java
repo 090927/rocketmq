@@ -66,10 +66,19 @@ public class TopicPublishInfo {
         this.haveTopicRouterInfo = haveTopicRouterInfo;
     }
 
+    /**
+     * 随机，选择一个 Broker。
+     * @param lastBrokerName
+     * @return
+     */
     public MessageQueue selectOneMessageQueue(final String lastBrokerName) {
+        // 如果没有 上一次使用的 Broker 作为参考，那么随机选择一个 Broker
         if (lastBrokerName == null) {
             return selectOneMessageQueue();
         } else {
+
+            // 如果存在上一次使用 Broker。就选择非上一次使用的 Broker。
+            // 目的：均匀分散Broker 压力。
             int index = this.sendWhichQueue.getAndIncrement();
             for (int i = 0; i < this.messageQueueList.size(); i++) {
                 int pos = Math.abs(index++) % this.messageQueueList.size();
@@ -80,6 +89,8 @@ public class TopicPublishInfo {
                     return mq;
                 }
             }
+
+            // 以上都没有选择。采用兜底方案。随机选择一个 Broker。
             return selectOneMessageQueue();
         }
     }

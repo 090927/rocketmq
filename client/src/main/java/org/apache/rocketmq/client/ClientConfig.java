@@ -34,19 +34,31 @@ import org.apache.rocketmq.remoting.protocol.LanguageCode;
  */
 public class ClientConfig {
     public static final String SEND_MESSAGE_WITH_VIP_CHANNEL_PROPERTY = "com.rocketmq.sendMessageWithVIPChannel";
+
+    // RocketMQ 集群的 Namesrv 地址。
     private String namesrvAddr = NameServerAddressUtils.getNameServerAddresses();
+
+    // 使用的客户端程序所在的机器的 IP 地址。
     private String clientIP = RemotingUtil.getLocalAddress();
+
+    // 实例名。每个实例都需要取唯一的名字。
     private String instanceName = System.getProperty("rocketmq.client.name", "DEFAULT");
+
+    // 客户端回调线程数，表示 Netty 通信层回调线程的个数。
     private int clientCallbackExecutorThreads = Runtime.getRuntime().availableProcessors();
     protected String namespace;
     protected AccessChannel accessChannel = AccessChannel.LOCAL;
 
     /**
      * Pulling topic information interval from the named server
+     *
+     *   获取 Topic 路由信息的间隔时长，单位为 ms
      */
     private int pollNameServerInterval = 1000 * 30;
     /**
      * Heartbeat interval in microseconds with message broker
+     *
+     *  与 Broker 心跳间隔的时长，单位为 ms
      */
     private int heartbeatBrokerInterval = 1000 * 30;
     /**

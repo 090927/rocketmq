@@ -77,6 +77,9 @@ public class MQFaultStrategy {
         if (this.sendLatencyFaultEnable) {
             try {
                 /**
+                 *  【 第一步 】 获取一个自增序号 `index` 通过取模获取 `Queue` 的位置下标 Pos.
+                 *      如果 Pos 对应的Broker 的延迟时间是可以接收的，并且是第一次发送。或者和上次发送 Broker 相同。则将 Queue 返回。
+                 *
                  * 使用本地线程变量，ThreadLocal 保存上一次发送的队列下标，消息发送使用轮训机制获取下一个发送消息队里。
                  * 循环，因为加入发送异常延迟，要确保选中的消息队列（MessageQueue）所在的Broker 是否正常
                  */
@@ -94,6 +97,7 @@ public class MQFaultStrategy {
                     }
                 }
 
+                // 【 第二步 】如果第一步，没有选中一个 Broker,则选择一个延迟较低的 Broker
                 // [ pickOneAtLeast ] 选择优秀对象，类似延迟队列
                 final String notBestBroker = latencyFaultTolerance.pickOneAtLeast();
                 // 根据broker 的 startTimestart 进行一个排序，值越小，排前面，然后再选择一个，
@@ -116,7 +120,12 @@ public class MQFaultStrategy {
             return tpInfo.selectOneMessageQueue();
         }
 
-        // 获得 lastBrokerName 对应的一个消息队列，不考虑该队列的可用性
+        /**
+         * 获得 lastBrokerName 对应的一个消息队列，不考虑该队列的可用性
+         *
+         *   [第三步] {@link TopicPublishInfo#selectOneMessageQueue(String)}
+         *      随机选择一个 Broker。
+         */
         return tpInfo.selectOneMessageQueue(lastBrokerName);
     }
 

@@ -92,12 +92,24 @@ public class MQClientInstance {
     private final int instanceIndex;
     private final String clientId;
     private final long bootTimestamp = System.currentTimeMillis();
+
+    // 当前 Client 实例的全部生产者的 内部实例
     private final ConcurrentMap<String/* group */, MQProducerInner> producerTable = new ConcurrentHashMap<String, MQProducerInner>();
+
+    // 当前 Client 实例的全部消费者的 内部实例
     private final ConcurrentMap<String/* group */, MQConsumerInner> consumerTable = new ConcurrentHashMap<String, MQConsumerInner>();
+
+    // 当前 Client 实例的 全部管理实例
     private final ConcurrentMap<String/* group */, MQAdminExtInner> adminExtTable = new ConcurrentHashMap<String, MQAdminExtInner>();
     private final NettyClientConfig nettyClientConfig;
+
+    // 其实每个 Client 也是一个 Netty-Server，也会支持 Broker 访问。（这里实现了全部 client 支持的接口）
     private final MQClientAPIImpl mQClientAPIImpl;
+
+    // 管理接口的本地实现类。
     private final MQAdminImpl mQAdminImpl;
+
+    // 当前生产者，消费者中全部 Topic 的本地缓存路由信息。
     private final ConcurrentMap<String/* Topic */, TopicRouteData> topicRouteTable = new ConcurrentHashMap<String, TopicRouteData>();
     private final Lock lockNamesrv = new ReentrantLock();
     private final Lock lockHeartbeat = new ReentrantLock();
@@ -105,6 +117,8 @@ public class MQClientInstance {
         new ConcurrentHashMap<String, HashMap<Long, String>>();
     private final ConcurrentMap<String/* Broker Name */, HashMap<String/* address */, Integer>> brokerVersionTable =
         new ConcurrentHashMap<String, HashMap<String, Integer>>();
+
+    // 本地定时任务，比如定期获取当前 Namesrv 地址、同步 Namesrv 信息。
     private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(new ThreadFactory() {
         @Override
         public Thread newThread(Runnable r) {
@@ -113,8 +127,12 @@ public class MQClientInstance {
     });
     private final ClientRemotingProcessor clientRemotingProcessor;
     private final PullMessageService pullMessageService;
+
+    // 重新平衡服务，定期执行重新平衡方法。
     private final RebalanceService rebalanceService;
     private final DefaultMQProducer defaultMQProducer;
+
+    // 消费监控，例如：拉取RT（响应时间）拉取TPS、消费RT 等统计。
     private final ConsumerStatsManager consumerStatsManager;
     private final AtomicLong sendHeartbeatTimesTotal = new AtomicLong(0);
     private ServiceState serviceState = ServiceState.CREATE_JUST;

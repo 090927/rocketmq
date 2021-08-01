@@ -394,6 +394,9 @@ public abstract class NettyRemotingAbstract {
         }
     }
 
+    /**
+     *  使用 `Netty` 异步框架，实现，`同步发送消息。`
+     */
     public RemotingCommand invokeSyncImpl(final Channel channel, final RemotingCommand request,
         final long timeoutMillis)
         throws InterruptedException, RemotingSendRequestException, RemotingTimeoutException {
@@ -407,12 +410,14 @@ public abstract class NettyRemotingAbstract {
                 @Override
                 public void operationComplete(ChannelFuture f) throws Exception {
                     if (f.isSuccess()) {
+                        // 设置成功，标识
                         responseFuture.setSendRequestOK(true);
                         return;
                     } else {
                         responseFuture.setSendRequestOK(false);
                     }
 
+                    // 释放锁
                     responseTable.remove(opaque);
                     responseFuture.setCause(f.cause());
                     responseFuture.putResponse(null);
@@ -420,8 +425,16 @@ public abstract class NettyRemotingAbstract {
                 }
             });
 
+            /*
+             *  使用 netty 实现同步。
+             *   1、每次发送同步请求后，执行 `waitResponse`, 直到 Netty 接收 Broker 的返回结果
+             *   2、使用 `opaque`
+             *      解决：异步发送 request, 与 response 的对应关系。
+             *
+             */
             RemotingCommand responseCommand = responseFuture.waitResponse(timeoutMillis);
             if (null == responseCommand) {
+                // 判断，是否调用成功。
                 if (responseFuture.isSendRequestOK()) {
                     throw new RemotingTimeoutException(RemotingHelper.parseSocketAddressAddr(addr), timeoutMillis,
                         responseFuture.getCause());

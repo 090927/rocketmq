@@ -264,10 +264,16 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
      * to invoke this method before sending or querying messages. </strong> </p>
      *
      * @throws MQClientException if there is any unexpected error.
+     *
+     *   生产者，启动入口
      */
     @Override
     public void start() throws MQClientException {
         this.setProducerGroup(withNamespace(this.producerGroup));
+
+        /**
+         *  具体实现 {@link DefaultMQProducerImpl#start()}
+         */
         this.defaultMQProducerImpl.start();
         if (null != traceDispatcher) {
             try {
@@ -340,6 +346,10 @@ public class DefaultMQProducer extends ClientConfig implements MQProducer {
     public SendResult send(Message msg,
         long timeout) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
         msg.setTopic(withNamespace(msg.getTopic()));
+
+        /**
+         * 消息发送 {@link DefaultMQProducerImpl#send(Message, long)}
+         */
         return this.defaultMQProducerImpl.send(msg, timeout);
     }
 

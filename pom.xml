@@ -127,6 +127,7 @@
         <module>openmessaging</module>
         <module>logging</module>
         <module>acl</module>
+        <module>my-test</module>
     </modules>
 
     <build>

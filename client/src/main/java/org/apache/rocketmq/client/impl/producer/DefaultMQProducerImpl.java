@@ -576,7 +576,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         long endTimestamp = beginTimestampFirst;
         /**
          *  1）获取topic 路由信息~broker
-         *  【 tryToFindTopicPublishInfo 】
+         *  {@link #tryToFindTopicPublishInfo
          */
         TopicPublishInfo topicPublishInfo = this.tryToFindTopicPublishInfo(msg.getTopic());
         if (topicPublishInfo != null && topicPublishInfo.ok()) {
@@ -584,14 +584,23 @@ public class DefaultMQProducerImpl implements MQProducerInner {
             MessageQueue mq = null;
             Exception exception = null;
             SendResult sendResult = null;
+
+
+            // 重试的次数。默认为：2次，加上正常发送的1次，总共有3次发送的机会。
             int timesTotal = communicationMode == CommunicationMode.SYNC ? 1 + this.defaultMQProducer.getRetryTimesWhenSendFailed() : 1;
             int times = 0;
             String[] brokersSent = new String[timesTotal];
+
+            // RocketMQ，高可用。发送失败后，进行重试。
             for (; times < timesTotal; times++) {
                 String lastBrokerName = null == mq ? null : mq.getBrokerName();
-                /*
+
+                /**
                  * 2）选择消息队列~MessageQueue
-                 * 【selectOneMessageQueue 】
+                 *  {@link #selectOneMessageQueue(TopicPublishInfo, String)}
+                 *
+                 *  最终实现类 {@link MQFaultStrategy#selectOneMessageQueue(TopicPublishInfo, String)}
+                 *
                  */
                 MessageQueue mqSelected = this.selectOneMessageQueue(topicPublishInfo, lastBrokerName);
                 if (mqSelected != null) {
@@ -610,7 +619,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                         }
                         /**
                          * 3）根据MessageQueue 向特定Broker 发送消息
-                         * 【核心方法】
+                         * 【核心方法】 {@link #sendKernelImpl(Message, MessageQueue, CommunicationMode, SendCallback, TopicPublishInfo, long)}
                          */
                         sendResult = this.sendKernelImpl(msg, mq, communicationMode, sendCallback, topicPublishInfo, timeout - costTime);
                         endTimestamp = System.currentTimeMillis();
@@ -915,6 +924,8 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                             this);
                         break;
                     case ONEWAY:
+
+                        // 同步发送
                     case SYNC:
                         long costTimeSync = System.currentTimeMillis() - beginStartTime;
                         if (timeout < costTimeSync) {
@@ -1409,6 +1420,10 @@ public class DefaultMQProducerImpl implements MQProducerInner {
 
     public SendResult send(Message msg,
         long timeout) throws MQClientException, RemotingException, MQBrokerException, InterruptedException {
+
+        /**
+         *  [ 发送消息核心 ] {@link #sendDefaultImpl(Message, CommunicationMode, SendCallback, long)}
+         */
         return this.sendDefaultImpl(msg, CommunicationMode.SYNC, null, timeout);
     }
 

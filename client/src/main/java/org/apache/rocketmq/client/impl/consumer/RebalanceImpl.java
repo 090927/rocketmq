@@ -43,13 +43,19 @@ import org.apache.rocketmq.common.protocol.heartbeat.SubscriptionData;
 /**
  * This class will be removed in 2022, and a better implementation {@link RebalanceLitePullImpl} is recommend to use
  * in the scenario of actively pulling messages.
+ *
+ *  客户端是通过 `Rebalance` 服务做到高可靠的。当发生Broker掉线、消费者实例掉线、Topic 扩容等各种突发情况时，消费者组中的消费者实例是怎么重平衡，以支持全部队列的正常消费的呢？
  */
 @Deprecated
 public abstract class RebalanceImpl {
     protected static final InternalLogger log = ClientLogger.getLog();
-    /** 消息处理队列 */
+    /*
+     * 消息处理队列,
+     *  MessageQueue 理解为，ConsumeQueue
+     *  ProcessQueue 是 保存 Pull 消息的本地容器。
+     * */
     protected final ConcurrentMap<MessageQueue, ProcessQueue> processQueueTable = new ConcurrentHashMap<MessageQueue, ProcessQueue>(64);
-    /** topic 的队列信息 */
+    /** topic 路由信息。topic 和 messageQueue 的关系 */
     protected final ConcurrentMap<String/* topic */, Set<MessageQueue>> topicSubscribeInfoTable =
         new ConcurrentHashMap<String, Set<MessageQueue>>();
     /** 订阅信息*/
