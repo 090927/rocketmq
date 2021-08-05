@@ -400,7 +400,9 @@ public class DefaultMessageStore implements MessageStore {
         }
 
         long beginTime = this.getSystemClock().now();
-        // 将日志写入 commitlog 文件，【 putMessage 】
+        /**
+         *  将日志写入 commitlog 文件，【 putMessage 】
+         */
         PutMessageResult result = this.commitLog.putMessage(msg);
 
         long elapsedTime = this.getSystemClock().now() - beginTime;

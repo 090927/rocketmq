@@ -91,7 +91,9 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
                 if (requestHeader.isBatch()) {
                     response = this.sendBatchMessage(ctx, request, mqtraceContext, requestHeader);
                 } else {
-                    // [ sendMessage ]
+                    /**
+                     *  同步发送消息 {@link #sendMessage(ChannelHandlerContext, RemotingCommand, SendMessageContext, SendMessageRequestHeader)}
+                     */
                     response = this.sendMessage(ctx, request, mqtraceContext, requestHeader);
                 }
 
@@ -329,7 +331,9 @@ public class SendMessageProcessor extends AbstractSendMessageProcessor implement
         // 消息配置(Topic配置）校验
         response.setCode(-1);
 
-        // [ msgCheck ]
+        /**
+         *  消息验证 {@link #msgCheck(ChannelHandlerContext, SendMessageRequestHeader, RemotingCommand)}
+         */
         super.msgCheck(ctx, requestHeader, response);
         if (response.getCode() != -1) {
             return response;

@@ -28,7 +28,14 @@ public class Message implements Serializable {
     private String topic;
     private int flag;
 
-    // 消息扩展信息，Tag, Keys, 延迟级别。都保存在这里。
+    /**
+     * 消息扩展信息，Tag, Keys, 延迟级别。都保存在这里。
+     *   存储：
+     *    1、tag：消息TAG，用于消息过滤
+     *    2、keys:Message索引键，多个用空格隔开，RocketMQ可以根据这些key快速检索到消息。
+     *    3、waitStoreMsgOK：消息发送时是否等消息存储完成后再返回
+     *    4、delayTimeLevel：消息延迟级别，用于定时消息或消息重试。
+     */
     private Map<String, String> properties;
 
     // 消息体，[ 需要注意：生产者使用什么编码，消费者也必须使用什么编码]
@@ -161,6 +168,9 @@ public class Message implements Serializable {
         return Boolean.parseBoolean(result);
     }
 
+    /**
+     * 消息发送时是否等消息存储完成后再返回
+     */
     public void setWaitStoreMsgOK(boolean waitStoreMsgOK) {
         this.putProperty(MessageConst.PROPERTY_WAIT_STORE_MSG_OK, Boolean.toString(waitStoreMsgOK));
     }

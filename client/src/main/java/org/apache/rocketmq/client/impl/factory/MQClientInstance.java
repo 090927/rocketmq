@@ -626,14 +626,16 @@ public class MQClientInstance {
      * 【MQ 消息消费】
      * 如果未找到路由信息，则再次尝试使用，默认topic(defaultMQProducer) 去找路由配置信息
      * @param topic
-     * @param isDefault
+     * @param isDefault,
+     *      true: 使用默认主题去查询，如果查询到路由信息，则替换路由信息中读写队列个数为消息生产默认队列个数
+     *      false: 使用参数 topic 去查询；如果未能查询到路由信息。则返回false。表示路由信息未变化。
      * @param defaultMQProducer
      * @return
      */
     public boolean updateTopicRouteInfoFromNameServer(final String topic, boolean isDefault,
         DefaultMQProducer defaultMQProducer) {
         try {
-            // 避免重复从NameServer 获取配置信息，使用ReentranLock,固定为 3000s
+            // 避免重复从NameServer 获取配置信息，使用 ReentranLock,固定为 3000s
             if (this.lockNamesrv.tryLock(LOCK_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {
                 try {
                     TopicRouteData topicRouteData;

@@ -574,9 +574,9 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         long beginTimestampFirst = System.currentTimeMillis();
         long beginTimestampPrev = beginTimestampFirst;
         long endTimestamp = beginTimestampFirst;
+
         /**
-         *  1）获取topic 路由信息~broker
-         *  {@link #tryToFindTopicPublishInfo
+         *  1）获取topic, 获取主题的路由信息  {@link #tryToFindTopicPublishInfo
          */
         TopicPublishInfo topicPublishInfo = this.tryToFindTopicPublishInfo(msg.getTopic());
         if (topicPublishInfo != null && topicPublishInfo.ok()) {
@@ -751,9 +751,10 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         if (topicPublishInfo.isHaveTopicRouterInfo() || topicPublishInfo.ok()) {
             return topicPublishInfo;
         } else {
-            /*
-             * 如果未找到路由信息，则再次尝试使用，默认topic(defaultMQProducer) 去找路由配置信息。
-             *  【 updateTopicRouteInfoFromNameServer 】
+
+            /**
+             * 如果没有缓存或没有包含消息队列，则向NameServer查询该topic的路由信息
+             *   {@link MQClientInstance#updateTopicRouteInfoFromNameServer(String, boolean, DefaultMQProducer)}
               */
             this.mQClientFactory.updateTopicRouteInfoFromNameServer(topic, true, this.defaultMQProducer);
             topicPublishInfo = this.topicPublishInfoTable.get(topic);
@@ -832,7 +833,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                     this.executeCheckForbiddenHook(checkForbiddenContext);
                 }
 
-                // hook 发送前校验
+                //  1）hook 发送前校验
                 if (this.hasSendMessageHook()) {
                     context = new SendMessageContext();
                     context.setProducer(this);
@@ -851,6 +852,10 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                     if (msg.getProperty("__STARTDELIVERTIME") != null || msg.getProperty(MessageConst.PROPERTY_DELAY_TIME_LEVEL) != null) {
                         context.setMsgType(MessageType.Delay_Msg);
                     }
+
+                    /**
+                     *  执行，发送消息前，增强（钩子函数）{@link #executeSendMessageHookBefore(SendMessageContext)}
+                     */
                     this.executeSendMessageHookBefore(context);
                 }
 
@@ -945,9 +950,13 @@ public class DefaultMQProducerImpl implements MQProducerInner {
                         assert false;
                         break;
                 }
-                // hook：发送消息后逻辑
+                // 2）hook：发送消息后逻辑
                 if (this.hasSendMessageHook()) {
                     context.setSendResult(sendResult);
+
+                    /**
+                     *  执行- 发送消息，后置函数 {@link #executeSendMessageHookAfter(SendMessageContext)}
+                     */
                     this.executeSendMessageHookAfter(context);
                 }
                 // 返回发送结果
@@ -1023,7 +1032,10 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         return !this.sendMessageHookList.isEmpty();
     }
 
+    // 执行-钩子函数，前置方法
     public void executeSendMessageHookBefore(final SendMessageContext context) {
+
+        // 非空，循环执行。
         if (!this.sendMessageHookList.isEmpty()) {
             for (SendMessageHook hook : this.sendMessageHookList) {
                 try {
@@ -1035,6 +1047,7 @@ public class DefaultMQProducerImpl implements MQProducerInner {
         }
     }
 
+    // 执行-钩子函数，后置方法
     public void executeSendMessageHookAfter(final SendMessageContext context) {
         if (!this.sendMessageHookList.isEmpty()) {
             for (SendMessageHook hook : this.sendMessageHookList) {

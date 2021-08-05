@@ -34,7 +34,14 @@ public class MQFaultStrategy {
      * 发送消息延迟容错开关
      */
     private boolean sendLatencyFaultEnable = false;
-    // 最大延迟时间数值，在消息发送之前，先纪律当前时间 start。然后在发送成功或失败时记录当前时间 end（end-start)代表一次消费延迟时间。
+
+    /*
+     * 最大延迟时间数值，在消息发送之前，先纪律当前时间 start。然后在发送成功或失败时记录当前时间 end（end-start) 代表一次消费延迟时间。
+     *
+     *  latencyMax：根据currentLatency本次消息发送延迟，从latencyMax尾部向前找到第一个比currentLatency小的索引index，
+     *      如果没有找到，返回0。然后根据这个索引从 [notAvailableDuration] 数组中取出对应的时间，在这个时长内，Broker将设置为不可用。
+     *
+     */
     private long[] latencyMax = {50L, 100L, 550L, 1000L, 2000L, 3000L, 15000L};
     private long[] notAvailableDuration = {0L, 0L, 30000L, 60000L, 120000L, 180000L, 600000L};
 

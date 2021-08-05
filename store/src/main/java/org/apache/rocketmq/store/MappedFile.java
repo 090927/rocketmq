@@ -214,7 +214,9 @@ public class MappedFile extends ReferenceResource {
             AppendMessageResult result;
             // 根据消息类型，是批量消息还是单个消息。
             if (messageExt instanceof MessageExtBrokerInner) {
-                // 具体写入逻辑【doAppend】
+                /**
+                 *  具体写入逻辑【doAppend】{@link org.apache.rocketmq.store.CommitLog.DefaultAppendMessageCallback#doAppend(long, ByteBuffer, int, MessageExtBrokerInner)}
+                 */
                 result = cb.doAppend(this.getFileFromOffset(), byteBuffer, this.fileSize - currentPos, (MessageExtBrokerInner) messageExt);
             } else if (messageExt instanceof MessageExtBatch) {
                 result = cb.doAppend(this.getFileFromOffset(), byteBuffer, this.fileSize - currentPos, (MessageExtBatch) messageExt);

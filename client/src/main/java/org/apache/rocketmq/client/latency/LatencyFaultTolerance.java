@@ -17,6 +17,11 @@
 
 package org.apache.rocketmq.client.latency;
 
+
+/**
+ * 延迟机制的接口规范
+ * @param <T>
+ */
 public interface LatencyFaultTolerance<T> {
 
     /**
@@ -41,7 +46,7 @@ public interface LatencyFaultTolerance<T> {
     void remove(final T name);
 
     /**
-     * 获取一个对象
+     * 尝试从规避的Broker中选择一个可用的Broker，如果没有找到，将返回null
      * @return
      */
     T pickOneAtLeast();

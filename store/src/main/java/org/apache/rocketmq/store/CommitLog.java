@@ -628,7 +628,9 @@ public class CommitLog {
                 return new PutMessageResult(PutMessageStatus.CREATE_MAPEDFILE_FAILED, null);
             }// 验证代码，MappedFile 对象，获取一个可用 MappedFile 如果没有创建一个
 
-            // 通过 ``MappedFile`` 对象写入文件 【 消息写入 】
+            /**
+             * 通过 ``MappedFile`` 对象写入文件 【 消息写入 】{@link MappedFile#appendMessage(MessageExtBrokerInner, AppendMessageCallback)}
+             */
             result = mappedFile.appendMessage(msg, this.appendMessageCallback);
             switch (result.getStatus()) {
                 case PUT_OK:
